@@ -41,6 +41,14 @@ gitlab_rails['time_zone'] = '<your timezone>'
 ### Email Settings
 # # [...] everything needed to send e-mails
 
+################################################################################
+## GitLab NGINX
+##! Docs: https://docs.gitlab.com/omnibus/settings/nginx.html
+################################################################################
+# [...]
+# To have Let's Encrypt fully functional, this parameter has to be set to true
+nginx['redirect_http_to_https'] = true
+
 # [...]
 ################################################################################
 # Let's Encrypt integration
@@ -64,3 +72,5 @@ https://store.docker.com/images/maven
 https://store.docker.com/images/postgres
 
 https://store.docker.com/images/sonarqube
+
+https://stackoverflow.com/questions/46753336/docker-compose-and-postgres-official-image-environment-variables?rq=1
