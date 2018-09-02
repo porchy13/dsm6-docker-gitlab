@@ -1,0 +1,86 @@
+version: "3"
+
+services:
+  postgres:
+    image: 'postgres:9.6-alpine'
+    restart: always
+    networks:
+      - cicdnet
+    volumes:
+      - postgresql:/var/lib/postgresql
+      - postgresql_data:/var/lib/postgresql/data
+
+  gitlab:
+    image: 'gitlab/gitlab-ee:latest'
+    restart: always
+    hostname: 'komodo.internet-box.ch'
+    privileged: true
+    depends_on:
+      - postgres
+    ports:
+      - '60080:80'
+      - '60443:443'
+      - '60022:22'
+    networks:
+      - cicdnet
+    volumes:
+      - gitlab_conf:/etc/gitlab
+      - gitlab_log:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+
+  sonarqube:
+    image: 'sonarqube:alpine'
+    restart: always
+    depends_on:
+      - postgres
+      - gitlab
+    ports:
+      - '60081:9000'
+    networks:
+      - cicdnet
+    environment:
+      - SONARQUBE_JDBC_URL=jdbc:postgresql://postgres:5432/sonar
+      - SONARQUBE_JDBC_USERNAME=sonar
+      - SONARQUBE_JDBC_PASSWORD=${SONARQUBE_PASSWORD}
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+
+  gitlab-runner:
+    image: 'gitlab/gitlab-runner:latest'
+    restart: always
+    depends_on:
+      - gitlab
+    networks:
+      - cicdnet
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - gitlab-runner_conf:/etc/gitlab-runner
+
+  watchtower:
+    image: v2tec/watchtower
+    networks:
+      - cicdnet
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - watchtower:/config.json
+    command: --schedule @weekly
+
+networks:
+  cicdnet:
+    driver: bridge
+
+volumes:
+  postgresql:
+  postgresql_data:
+  gitlab_conf:
+  gitlab_log:
+  gitlab_data:
+  sonarqube_conf:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_bundled-plugins:
+  gitlab-runner_conf:
+  watchtower:
