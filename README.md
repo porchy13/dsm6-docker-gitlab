@@ -97,6 +97,8 @@ To finish the setup, the container should be restarted.
 
 The configuration shown below retrieves the last version of GitLab Enterprise Edition. The ports are mapped to ports that will be exposed to the Internet.
 
+> ⚠ GitLab depends on SonarQube to start. This is due to Nginx that check the existance of the SonarQube container before launching.
+
 ```yaml
 gitlab:
   image: 'gitlab/gitlab-ee:latest'
@@ -105,6 +107,7 @@ gitlab:
   privileged: true
   depends_on:
     - postgres
+    - sonarqube
   ports:
     - '60080:80'
     - '60443:443'
@@ -215,7 +218,6 @@ sonarqube:
   restart: always
   depends_on:
     - postgres
-    - gitlab
   command: -Dsonar.web.context=/sonarqube
   networks:
     - cicdnet

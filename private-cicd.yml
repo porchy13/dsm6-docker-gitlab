@@ -17,6 +17,7 @@ services:
     privileged: true
     depends_on:
       - postgres
+      - sonarqube
     ports:
       - '60080:80'
       - '60443:443'
@@ -33,7 +34,6 @@ services:
     restart: always
     depends_on:
       - postgres
-      - gitlab
     command: -Dsonar.web.context=/sonarqube
     networks:
       - cicdnet
