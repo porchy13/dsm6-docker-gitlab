@@ -4,13 +4,30 @@ This tutorial aims to install GitLab and SonarQube to create a private integrati
 
 The purpose is to offer all DSM services only on the internal network and to serve the GitLab instance over the Internet.
 
-The Runners will use Docker to perform the CI operations. As it is written below, this tutorial is focused on Java projects that are build using Maven.
+The Runners will use Docker to perform the CI operations. This tutorial is focused on Java projects that are build using Maven.
 
 This tutorial implies that you have a SSH access to your Synology with an admin user. The ```docker``` and ```docker-compose``` commands have to be executed using ```sudo```.
 
 One unique _docker-compose.yml_ file will be created and is available in the repository. All chapters will only present their part of the global Docker configuration. All services will run on a unique network called _cicdnet_. So, all urls will directly match the container name.
 
 > ⚠ When connecting to a container, it's name can be different as the one shown in this article.
+
+## Docker images and plugins
+
+GitLab will be configured to serve trough the context _gitlab_. Using the GitLab embedded Nginx instance, SonarQube will serve it's pages through the context _sonarqube_. The root will automatically been redirect to _gitlab_.
+
+All services will be secured using a Let's Encrypt certificate. This certificate will be automatically obtain using GitLab adequate support. The usage of the HTTPS protocol is mandatory to bind GitLab and SonarQube.
+
+The following docker images will be used:
+* PostgreSQL: [_postgres:9.6-alpine_](https://store.docker.com/images/postgres)
+* GitLab Enterprise Edition: [_gitlab/gitlab-ee:latest_](https://store.docker.com/community/images/gitlab/gitlab-ee)
+* SonarQube: [_sonarqube:alpine_](https://store.docker.com/images/sonarqube)
+* GitLab Runners: [_gitlab/gitlab-runner:latest_](https://store.docker.com/community/images/gitlab/gitlab-runner)
+* WatchTower: [_v2tec/watchtower_](https://store.docker.com/community/images/v2tec/watchtower)
+
+Additionally, some plugins will be used for SonarQube:
+* [SonarQube GitLab Plugin](https://gitlab.talanlabs.com/gabriel-allaigre/sonar-gitlab-plugin) to integrate the SonarQube reports to the commits directly into GitLab.
+* [SonarQube Gitlab Auth Plugin](https://gitlab.talanlabs.com/gabriel-allaigre/sonar-auth-gitlab-plugin) to authenticate users into SonarQube using GitLab.
 
 ## Configuring PostgreSQL and it's container
 
@@ -68,6 +85,12 @@ host    gitlab          gitlab          172.20.0.0/16           md5
 host    sonar           sonar           172.20.0.0/16           md5
 ```
 
+To get the sub-net to limit access to the databases, the value can be obtained by inspecting the network.
+
+```shell
+$ sudo docker network ls
+$ sudo docker network inspect <network_name>
+```
 To finish the setup, the container should be restarted.
 
 ## Configuring GitLab and it's container
@@ -78,7 +101,7 @@ The configuration shown below retrieves the last version of GitLab Enterprise Ed
 gitlab:
   image: 'gitlab/gitlab-ee:latest'
   restart: always
-  hostname: 'your-host.com'
+  hostname: '<url>'
   privileged: true
   depends_on:
     - postgres
@@ -105,11 +128,16 @@ root@host:/# vi /etc/gitlab/gitlab.rb
 root@host:/# gitlab-ctl reconfigure
 ```
 
-The configuration portion of GitLab shown below only focused on the changed lines. Remember that the connection to the PostgreSQL container is made through the socket. The e-mail setting is not shown, take a look at the GitLab configuration pages for more details.
+The configuration portion of GitLab shown below only focused on the changed lines:
+* GitLab will be accessible through the context _gitlab_.
+* The e-mail setting is not shown, take a look at the GitLab configuration pages for more details.
+* The embedded instance of PostgreSQL will be deactivated and the connection to the PostgreSQL container is made through the container's name.
+* The communications will only pass through HTTPS and the access to the root will be automatically redirect to the _gitlab_ context.
+* The SSL certificate will be obtain through Let's Encrypt.
 
 ```Ruby
 # [...]
-external_url 'https://<hostname>'
+external_url 'https://<url>/gitlab'
 
 # [...]
 ################################################################################
@@ -131,7 +159,7 @@ gitlab_rails['db_encoding'] = "unicode"
 gitlab_rails['db_database'] = "gitlab"
 gitlab_rails['db_username'] = "gitlab"
 gitlab_rails['db_password'] = "secret"
-gitlab_rails['db_host'] = "/var/run/postgresql/"
+gitlab_rails['db_host'] = "postgres"
 
 # [...]
 
@@ -156,6 +184,13 @@ postgresql['enable'] = false
 nginx['redirect_http_to_https'] = true
 
 # [...]
+
+nginx['custom_gitlab_server_config'] = "
+location = / {
+  return 302 https://$host/gitlab/;
+}"
+
+# [...]
 ################################################################################
 # Let's Encrypt integration
 ################################################################################
@@ -163,11 +198,16 @@ letsencrypt['enable'] = true
 letsencrypt['contact_emails'] = ['<your-email>']
 ```
 
-After GitLab has been reconfigured, open the GitLab site and create the _root_ password. After that, configure GitLab as you want.
+After GitLab has been reconfigured and restarted (see commands below), open the GitLab site and create the _root_ password. After that, configure GitLab as you want.
+
+```shell
+$ gitlab-ctl reconfigure
+$ gitlab-ctl restart
+```
 
 ## Configuring SonarQube and it's container
 
-The SonarQube configuration is shown below. The database password is set through an _.env_ file located at the same place of the _docker-compose.yml_ file. It only contains ```SONARQUBE_PASSWORD=secret```. It is not planned to give access to SonarQube from the Internet. It will be only available from the private network.
+The SonarQube configuration is shown below. The database password is set into an _.env_ file located at the same place of the _docker-compose.yml_ file. It only contains ```SONARQUBE_PASSWORD=secret```. It will be accessed through the context _sonarqube_.
 
 ```yaml
 sonarqube:
@@ -176,8 +216,7 @@ sonarqube:
   depends_on:
     - postgres
     - gitlab
-  ports:
-    - '60081:9000'
+  command: -Dsonar.web.context=/sonarqube
   networks:
     - cicdnet
   environment:
@@ -191,8 +230,35 @@ sonarqube:
     - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
 ```
 
+To serve SonarQube, the embedded instance of Nginx in GitLab should redirect the corresponding traffic to the corresponding context. The _gitlab.rb_ should be adapted as shown below:
+
+```conf
+nginx['custom_gitlab_server_config'] = "
+location = / {
+  return 302 https://$host/gitlab/;
+}
+
+location /sonarqube/ {
+  proxy_pass              http://sonarqube:9000;
+
+  proxy_set_header        Host                    $host;
+  proxy_set_header        X-Real-IP               $remote_addr;
+  proxy_set_header        X-Forwarded-For         $proxy_add_x_forwarded_for;
+  proxy_read_timeout      1800;
+  proxy_connect_timeout   1800;
+}"
+```
+
+After the modifications, GitLab should be reconfigured and only Nginx should be restarted:
+
+```shell
+$ gitlab-ctl reconfigure
+$ gitlab-ctl restart nginx
+```
+
 When the container runs, the first thing to do is to change the _admin_ password. By default, it is set to _admin_. Before installing the needed extensions for GitLab, there are some options that can be set (at your convenience) in the _Administration_ menu:
-* _Configuration_ > _Security_ > _Force user authentication_ > yes
+* _Configuration_ > _Security_ > _Force user authentication_: yes
+* _Configuration_ > _General_ > _Server base URL_: https://<url>/sonarqube
 * _Security_ > _Permission Templates_ > _Default template_ > _Project Creators_: check _Administer_
 
 Now, let's install and configure the GitLab related plugins. In the _Marketplace_, search for "gitlab" plugins and mark for install _GitLab_ and _GitLab Auth_. Do not forgive to also check the updatable plugins and select them to restart SonarQube only once.
@@ -200,10 +266,10 @@ Now, let's install and configure the GitLab related plugins. In the _Marketplace
 After the restart, a new _GitLab_ section is shown in the _Administration_ menu. Select it and configure the plugins as following:
 * Authentication
   * _Enabled_: yes
-  * _GitLab url_: <your_public_url>
+  * _GitLab url_: https://<url>/gitlab
   * _Application ID_: get the value from _GitLab_ > _Admin area_ > _Applications_ > _New application_ with the following data:
     * _Name_: SonarQube
-    * _Redirect URI_: http://<your_private_url>:60081
+    * _Redirect URI_: https://<url>/sonarqube/oauth2/callback/gitlab
     * _Trusted_: checked
     * _Scopes_: read_user
   * _Secret_: as above
@@ -211,53 +277,81 @@ After the restart, a new _GitLab_ section is shown in the _Administration_ menu.
   * _Synchronize user groups_: yes
   * _User exceptions_: root
 * Reporting
-  * _GitLab url_: <your_public_url>
+  * _GitLab url_: https://<url>/gitlab
   * _Comment when no new issue_: yes
   * _All issues_: yes
   * _Load rules information_: yes
 
 After the configuration has been done, SonarQube must be restarted.
 
-## The DSM Firewall
-
-The first 
-
 ## Configuring GitLab Runner
 
-## Updating the containers
+The various runners will be executed through the dedicated container configured below:
 
-Before updating a container, it is safe to stop it. The commands below stop all containers before pulling the new images. You can focus your update to only one container but you have to be sure of what you are doing, the order of operation has to be maintained.
-
-For example, if there are updates of GitLab **and** PostgreSQL, they could not be done at the same time. GitLab needs to update it's database and PostgreSQL must be running during this step.
-
-```shell
-$ sudo docker-compose -f <path_to>/nexus3.yml stop
-$ sudo docker-compose -f <path_to>/sonarqube.yml stop
-$ sudo docker-compose -f <path_to>/gitlab.yml stop
-$ sudo docker-compose -f <path_to>/gitlab-runner.yml stop
-$ sudo docker-compose -f <path_to>/postgresql.yml stop
+```yaml
+gitlab-runner:
+  image: 'gitlab/gitlab-runner:latest'
+  restart: always
+  depends_on:
+    - gitlab
+  networks:
+    - cicdnet
+  volumes:
+    - '/var/run/docker.sock:/var/run/docker.sock'
+    - gitlab-runner_conf:/etc/gitlab-runner
 ```
 
-```shell
-$ sudo docker-compose -f <path_to>/nexus3.yml pull
-$ sudo docker-compose -f <path_to>/sonarqube.yml pull
-$ sudo docker-compose -f <path_to>/gitlab.yml pull
-$ sudo docker-compose -f <path_to>/gitlab-runner.yml pull
-$ sudo docker-compose -f <path_to>/postgresql.yml pull
-```
+After it has been started, the necessary runners should be configured like shown below. This example creates a runner running into a Docker container that contains the Maven environnement.
 
 ```shell
-$ TODO
+$ sudo docker exec -ti jerome_gitlab-runner_1 bash
+container$ gitlab-runner register
+Running in system-mode.
+Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): https://<url>/gitlab/
+Please enter the gitlab-ci token for this runner: <from_gitlab>
+Please enter the gitlab-ci description for this runner: maven3-jdk8
+Please enter the gitlab-ci tags for this runner (comma separated): maven3-jdk8
+Registering runner... succeeded
+Please enter the executor: docker
+Please enter the default Docker image (e.g. ruby:2.1): maven:3-jdk-8-alpine
+Runner registered successfully. Feel free to start it, but if it's running already the config should be automatically reloaded! 
 ```
+
+> To cache Maven or Ivy artifacts, the runners configuration should be changed in the file _/etc/gitlab-runner/config.toml_ of the container (or in the corresponding volume). For each runner concerned, the _volumes_ directive should be changed to add the volume that will contain the artifacts:
+
+```toml
+volumes = ["/cache","m2_cache:/root/.m2"]
+# or
+volumes = ["/cache","ivy2_cache:/root/.ivy2"]
+```
+
+To persist the corresponding volumes, add them to the _docker-compose.yml_ file.
+
+## Configuring WatchTower
+
+TODO
+
+```yaml
+watchtower:
+  image: v2tec/watchtower
+  networks:
+    - cicdnet
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - watchtower:/config.json
+  command: --schedule @weekly
+```
+
+## The DSM Firewall
+
+TODO
 
 ## References
 
-https://docs.gitlab.com/ee/install/docker.html
-
-https://store.docker.com/images/maven
-
-https://store.docker.com/images/postgres
-
-https://store.docker.com/images/sonarqube
-
-https://stackoverflow.com/questions/46753336/docker-compose-and-postgres-official-image-environment-variables?rq=1
+- https://docs.gitlab.com/ee/install/docker.html
+- https://store.docker.com/images/maven
+- https://store.docker.com/images/postgres
+- https://store.docker.com/images/sonarqube
+- https://stackoverflow.com/questions/46753336/docker-compose-and-postgres-official-image-environment-variables?rq=1
+- https://store.docker.com/images/maven
+- https://store.docker.com/community/images/hseeberger/scala-sbt

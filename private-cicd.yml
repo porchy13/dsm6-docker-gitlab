@@ -34,8 +34,7 @@ services:
     depends_on:
       - postgres
       - gitlab
-    ports:
-      - '60081:9000'
+    command: -Dsonar.web.context=/sonarqube
     networks:
       - cicdnet
     environment:
@@ -84,3 +83,5 @@ volumes:
   sonarqube_bundled-plugins:
   gitlab-runner_conf:
   watchtower:
+  m2_cache:
+  ivy2_cache:
