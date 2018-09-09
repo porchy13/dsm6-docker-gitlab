@@ -332,14 +332,22 @@ To persist the corresponding volumes, add them to the _docker-compose.yml_ file.
 TODO
 
 ```yaml
-watchtower:
-  image: v2tec/watchtower
-  networks:
-    - cicdnet
-  volumes:
-    - /var/run/docker.sock:/var/run/docker.sock
-    - watchtower:/config.json
-  command: --schedule @weekly
+  watchtower:
+    image: v2tec/watchtower
+    networks:
+      - cicdnet
+    environment:
+      - WATCHTOWER_NOTIFICATIONS=email
+      - WATCHTOWER_NOTIFICATION_EMAIL_FROM=${EMAIL_FROM}
+      - WATCHTOWER_NOTIFICATION_EMAIL_TO=${WATCHTOWER_TO}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER=${EMAIL_SMTP}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT=${EMAIL_SMTP_PORT}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER=${EMAIL_USERNAME}
+      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD=${EMAIL_PASSWORD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - watchtower:/config.json
+    command: --schedule @weekly
 ```
 
 ## The DSM Firewall
