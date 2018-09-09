@@ -306,8 +306,8 @@ gitlab-runner:
 After it has been started, the necessary runners should be configured like shown below. This example creates a runner running into a Docker container that contains the Maven environnement.
 
 ```shell
-$ sudo docker exec -ti jerome_gitlab-runner_1 bash
-container$ gitlab-runner register
+$ sudo docker exec -ti gitlab-runner bash
+gitlab-runner$ gitlab-runner register
 Running in system-mode.
 Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): https://<url>/gitlab/
 Please enter the gitlab-ci token for this runner: <from_gitlab>
@@ -363,5 +363,7 @@ TODO
 - https://store.docker.com/images/postgres
 - https://store.docker.com/images/sonarqube
 - https://stackoverflow.com/questions/46753336/docker-compose-and-postgres-official-image-environment-variables?rq=1
+- https://docs.gitlab.com/runner/install/docker.html
 - https://store.docker.com/images/maven
 - https://store.docker.com/community/images/hseeberger/scala-sbt
+- https://github.com/v2tec/watchtower
