@@ -101,7 +101,7 @@ The configuration shown below retrieves the last version of GitLab Enterprise Ed
 gitlab:
   image: 'gitlab/gitlab-ee:latest'
   restart: always
-  hostname: '&lt;url&gt;'
+  hostname: '<url>'
   privileged: true
   depends_on:
     - postgres
@@ -137,7 +137,7 @@ The configuration portion of GitLab shown below only focused on the changed line
 
 ```Ruby
 # [...]
-external_url 'https://&lt;url&gt;/gitlab'
+external_url 'https://<url>/gitlab'
 
 # [...]
 ################################################################################
@@ -307,7 +307,7 @@ After it has been started, the necessary runners should be configured like shown
 $ sudo docker exec -ti jerome_gitlab-runner_1 bash
 container$ gitlab-runner register
 Running in system-mode.
-Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): https://&lt;url&gt;/gitlab/
+Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): https://<url>/gitlab/
 Please enter the gitlab-ci token for this runner: <from_gitlab>
 Please enter the gitlab-ci description for this runner: maven3-jdk8
 Please enter the gitlab-ci tags for this runner (comma separated): maven3-jdk8
