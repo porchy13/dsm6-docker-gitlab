@@ -101,7 +101,7 @@ The configuration shown below retrieves the last version of GitLab Enterprise Ed
 gitlab:
   image: 'gitlab/gitlab-ee:latest'
   restart: always
-  hostname: '<url>'
+  hostname: '&lt;url&gt;'
   privileged: true
   depends_on:
     - postgres
@@ -137,7 +137,7 @@ The configuration portion of GitLab shown below only focused on the changed line
 
 ```Ruby
 # [...]
-external_url 'https://<url>/gitlab'
+external_url 'https://&lt;url&gt;/gitlab'
 
 # [...]
 ################################################################################
@@ -258,7 +258,7 @@ $ gitlab-ctl restart nginx
 
 When the container runs, the first thing to do is to change the _admin_ password. By default, it is set to _admin_. Before installing the needed extensions for GitLab, there are some options that can be set (at your convenience) in the _Administration_ menu:
 * _Configuration_ > _Security_ > _Force user authentication_: yes
-* _Configuration_ > _General_ > _Server base URL_: https://<url>/sonarqube
+* _Configuration_ > _General_ > _Server base URL_: https://&lt;url&gt;/sonarqube
 * _Security_ > _Permission Templates_ > _Default template_ > _Project Creators_: check _Administer_
 
 Now, let's install and configure the GitLab related plugins. In the _Marketplace_, search for "gitlab" plugins and mark for install _GitLab_ and _GitLab Auth_. Do not forgive to also check the updatable plugins and select them to restart SonarQube only once.
@@ -266,10 +266,10 @@ Now, let's install and configure the GitLab related plugins. In the _Marketplace
 After the restart, a new _GitLab_ section is shown in the _Administration_ menu. Select it and configure the plugins as following:
 * Authentication
   * _Enabled_: yes
-  * _GitLab url_: https://<url>/gitlab
+  * _GitLab url_: https://&lt;url&gt;/gitlab
   * _Application ID_: get the value from _GitLab_ > _Admin area_ > _Applications_ > _New application_ with the following data:
     * _Name_: SonarQube
-    * _Redirect URI_: https://<url>/sonarqube/oauth2/callback/gitlab
+    * _Redirect URI_: https://&lt;url&gt;/sonarqube/oauth2/callback/gitlab
     * _Trusted_: checked
     * _Scopes_: read_user
   * _Secret_: as above
@@ -277,7 +277,7 @@ After the restart, a new _GitLab_ section is shown in the _Administration_ menu.
   * _Synchronize user groups_: yes
   * _User exceptions_: root
 * Reporting
-  * _GitLab url_: https://<url>/gitlab
+  * _GitLab url_: https://&lt;url&gt;/gitlab
   * _Comment when no new issue_: yes
   * _All issues_: yes
   * _Load rules information_: yes
@@ -307,7 +307,7 @@ After it has been started, the necessary runners should be configured like shown
 $ sudo docker exec -ti jerome_gitlab-runner_1 bash
 container$ gitlab-runner register
 Running in system-mode.
-Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): https://<url>/gitlab/
+Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/): https://&lt;url&gt;/gitlab/
 Please enter the gitlab-ci token for this runner: <from_gitlab>
 Please enter the gitlab-ci description for this runner: maven3-jdk8
 Please enter the gitlab-ci tags for this runner (comma separated): maven3-jdk8
