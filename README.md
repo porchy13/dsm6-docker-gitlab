@@ -336,6 +336,7 @@ TODO
 ```yaml
   watchtower:
     image: v2tec/watchtower
+    restart: always
     networks:
       - cicdnet
     environment:
