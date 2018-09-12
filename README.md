@@ -246,8 +246,6 @@ location /sonarqube/ {
   proxy_set_header        Host                    $host;
   proxy_set_header        X-Real-IP               $remote_addr;
   proxy_set_header        X-Forwarded-For         $proxy_add_x_forwarded_for;
-  proxy_read_timeout      1800;
-  proxy_connect_timeout   1800;
 }"
 ```
 
@@ -331,31 +329,45 @@ To persist the corresponding volumes, add them to the _docker-compose.yml_ file.
 
 ## Configuring WatchTower
 
-TODO
+WatchTower will update automatically the containers. The definition below will configure WatchTower to check for updates once a week. You can change this by changing the ```command``` directive by using [Cron expression](https://godoc.org/github.com/robfig/cron#hdr-CRON_Expression_Format).
 
 ```yaml
-  watchtower:
-    image: v2tec/watchtower
-    restart: always
-    networks:
-      - cicdnet
-    environment:
-      - WATCHTOWER_NOTIFICATIONS=email
-      - WATCHTOWER_NOTIFICATION_EMAIL_FROM=${EMAIL_FROM}
-      - WATCHTOWER_NOTIFICATION_EMAIL_TO=${WATCHTOWER_TO}
-      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER=${EMAIL_SMTP}
-      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT=${EMAIL_SMTP_PORT}
-      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER=${EMAIL_USERNAME}
-      - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD=${EMAIL_PASSWORD}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - watchtower:/config.json
-    command: --schedule @weekly
+watchtower:
+  image: v2tec/watchtower
+  restart: always
+  networks:
+    - cicdnet
+  environment:
+    - WATCHTOWER_NOTIFICATIONS=email
+    - WATCHTOWER_NOTIFICATION_EMAIL_FROM=${EMAIL_FROM}
+    - WATCHTOWER_NOTIFICATION_EMAIL_TO=${WATCHTOWER_TO}
+    - WATCHTOWER_NOTIFICATION_EMAIL_SERVER=${EMAIL_SMTP}
+    - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT=${EMAIL_SMTP_PORT}
+    - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER=${EMAIL_USERNAME}
+    - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD=${EMAIL_PASSWORD}
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+  command: --schedule @weekly
 ```
+
+It has been chosen to be notified by email when an update occurs. The various email variables will be stored in the _.env_ file (see (#configuring-sonarqube-and-its-container)).
+
+> ⚠ If you experience problems by not receiving mails on a secure connection, check for this answer on [StackOverflow](https://stackoverflow.com/a/11664176).
 
 ## The DSM Firewall
 
-TODO
+As the services are completely configured and running, it's time to configure the Firewall of the DSM (Control Panel > Security > Firewall) to let the services be accessible from the internet. To create the corresponding rule, choose the Firewall profile and click on _Edit Rules_. Create a new rule using the following configuration:
+* Ports
+  * Custom (and click on the _Custom_ button)
+    * _Type_: Destination port
+    * _Protocol_: TCP
+    * _Ports (separate with commas)_: 60022,60080,60443
+* Source IP
+  * All
+* Action
+  * Allow
+
+> ⚠ Do not select a _built-in applications_ while creating the rule. If you stop all service in one time using ```docker-compose stop```, the rule will be deactivated.
 
 ## References
 
@@ -368,3 +380,5 @@ TODO
 - https://store.docker.com/images/maven
 - https://store.docker.com/community/images/hseeberger/scala-sbt
 - https://github.com/v2tec/watchtower
+- https://stackoverflow.com/a/11664176
+- https://godoc.org/github.com/robfig/cron#hdr-CRON_Expression_Format
