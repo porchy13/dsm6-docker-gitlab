@@ -350,7 +350,7 @@ watchtower:
   command: --schedule @weekly
 ```
 
-It has been chosen to be notified by email when an update occurs. The various email variables will be stored in the _.env_ file (see (#configuring-sonarqube-and-its-container)).
+It has been chosen to be notified by email when an update occurs. The various email variables will be stored in the _.env_ file (see the [SonarQube section](#configuring-sonarqube-and-its-container)).
 
 > ⚠ If you experience problems by not receiving mails on a secure connection, check for this answer on [StackOverflow](https://stackoverflow.com/a/11664176).
 
