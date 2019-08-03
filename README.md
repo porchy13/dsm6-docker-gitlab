@@ -210,11 +210,25 @@ $ gitlab-ctl restart
 
 ## Configuring SonarQube and it's container
 
+First, the DSM configuration should be adapted to allow to launch ElasticSearch. It needs a bigger amount of virtual memory than it is originally allowed. On DSM 6, to persist the changes, the change should be made in the file ```/etc.defaults/sysctl.conf``` and the new value should be set at the end of the file, as below:
+
+```conf
+# ...
+vm.max_map_count=262144
+```
+
+After the change, the Synology must be restarted. After it has been restarted, the value can be verified using the following command:
+
+```shell
+$ sysctl vm.max_map_count
+vm.max_map_count = 262144
+``` 
+
 The SonarQube configuration is shown below. The database password is set into an _.env_ file located at the same place of the _docker-compose.yml_ file. It only contains ```SONARQUBE_PASSWORD=secret```. It will be accessed through the context _sonarqube_.
 
 ```yaml
 sonarqube:
-  image: 'sonarqube:alpine'
+  image: 'sonarqube:latest'
   restart: always
   depends_on:
     - postgres
@@ -382,3 +396,7 @@ As the services are completely configured and running, it's time to configure th
 - https://github.com/v2tec/watchtower
 - https://stackoverflow.com/a/11664176
 - https://godoc.org/github.com/robfig/cron#hdr-CRON_Expression_Format
+- https://github.com/elastic/elasticsearch/issues/22899
+- https://docs.sonarqube.org/latest/requirements/requirements/#header-4
+- https://docs.sonarqube.org/latest/requirements/requirements/
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/vm-max-map-count.html
