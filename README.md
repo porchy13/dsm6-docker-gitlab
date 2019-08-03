@@ -239,6 +239,7 @@ sonarqube:
     - SONARQUBE_JDBC_URL=jdbc:postgresql://postgres:5432/sonar
     - SONARQUBE_JDBC_USERNAME=sonar
     - SONARQUBE_JDBC_PASSWORD=${SONARQUBE_PASSWORD}
+    - sonar.search.javaAdditionalOpts=-Dbootstrap.system_call_filter=false
   volumes:
     - sonarqube_conf:/opt/sonarqube/conf
     - sonarqube_data:/opt/sonarqube/data

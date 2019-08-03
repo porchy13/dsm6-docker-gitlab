@@ -30,7 +30,7 @@ services:
       - gitlab_data:/var/opt/gitlab
 
   sonarqube:
-    image: 'sonarqube:alpine'
+    image: 'sonarqube:latest'
     restart: always
     depends_on:
       - postgres
