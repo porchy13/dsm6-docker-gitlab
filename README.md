@@ -19,19 +19,15 @@ GitLab will be configured to serve trough the context _gitlab_. Using the GitLab
 All services will be secured using a Let's Encrypt certificate. This certificate will be automatically obtain using GitLab adequate support. The usage of the HTTPS protocol is mandatory to bind GitLab and SonarQube.
 
 The following docker images will be used:
-* PostgreSQL: [_postgres:9.6-alpine_](https://store.docker.com/images/postgres)
+* PostgreSQL: [_postgres:12_](https://store.docker.com/images/postgres)
 * GitLab Enterprise Edition: [_gitlab/gitlab-ee:latest_](https://store.docker.com/community/images/gitlab/gitlab-ee)
 * SonarQube: [_sonarqube:alpine_](https://store.docker.com/images/sonarqube)
 * GitLab Runners: [_gitlab/gitlab-runner:latest_](https://store.docker.com/community/images/gitlab/gitlab-runner)
 * WatchTower: [_v2tec/watchtower_](https://store.docker.com/community/images/v2tec/watchtower)
 
-Additionally, some plugins will be used for SonarQube:
-* [SonarQube GitLab Plugin](https://gitlab.talanlabs.com/gabriel-allaigre/sonar-gitlab-plugin) to integrate the SonarQube reports to the commits directly into GitLab.
-* [SonarQube Gitlab Auth Plugin](https://gitlab.talanlabs.com/gabriel-allaigre/sonar-auth-gitlab-plugin) to authenticate users into SonarQube using GitLab.
-
 ## Configuring PostgreSQL and it's container
 
-PostgreSQL will be shared between GitLab and SonarQube as an independent piece. The version 9.6 will be used to avoid problems with GitLab:
+PostgreSQL will be shared between GitLab and SonarQube as an independent piece. The version 12 will be used to avoid problems with GitLab:
 * The official docker image of PostgreSQL do not allow to export binaries as a volume (it refuse to start if set).
 * PostgreSQL binaries shipped with GitLab are from version 9.6 and they do not allow to connect to a 10+ PostgreSQL version.
 
@@ -39,7 +35,7 @@ The connection to PostgreSQL will be done through the specific network. The port
 
 ```yaml
 postgres:
-  image: 'postgres:9.6-alpine'
+  image: 'postgres:12'
   restart: always
   networks:
     - cicdnet
@@ -162,7 +158,7 @@ gitlab_rails['db_encoding'] = "unicode"
 gitlab_rails['db_database'] = "gitlab"
 gitlab_rails['db_username'] = "gitlab"
 gitlab_rails['db_password'] = "secret"
-gitlab_rails['db_host'] = "postgres"
+gitlab_rails['db_host'] = "postgres12"
 
 # [...]
 
@@ -232,7 +228,7 @@ sonarqube:
   restart: always
   depends_on:
     - postgres
-  command: -Dsonar.web.context=/sonarqube
+  command: -Dsonar.web.context=/sonarqube -Dsonar.search.javaAdditionalOpts=-Dbootstrap.system_call_filter=false
   networks:
     - cicdnet
   environment:
@@ -244,7 +240,6 @@ sonarqube:
     - sonarqube_conf:/opt/sonarqube/conf
     - sonarqube_data:/opt/sonarqube/data
     - sonarqube_extensions:/opt/sonarqube/extensions
-    - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
 ```
 
 To serve SonarQube, the embedded instance of Nginx in GitLab should redirect the corresponding traffic to the corresponding context. The _gitlab.rb_ should be adapted as shown below:
@@ -276,9 +271,7 @@ When the container runs, the first thing to do is to change the _admin_ password
 * _Configuration_ > _General_ > _Server base URL_: https://&lt;url&gt;/sonarqube
 * _Security_ > _Permission Templates_ > _Default template_ > _Project Creators_: check _Administer_
 
-Now, let's install and configure the GitLab related plugins. In the _Marketplace_, search for "gitlab" plugins and mark for install _GitLab_ and _GitLab Auth_. Do not forgive to also check the updatable plugins and select them to restart SonarQube only once.
-
-After the restart, a new _GitLab_ section is shown in the _Administration_ menu. Select it and configure the plugins as following:
+To enable the GitLab authentication, select the _GitLab_ tab in the _ALM Integrations_ menu and configure as following:
 * Authentication
   * _Enabled_: yes
   * _GitLab url_: https://&lt;url&gt;/gitlab
@@ -286,16 +279,10 @@ After the restart, a new _GitLab_ section is shown in the _Administration_ menu.
     * _Name_: SonarQube
     * _Redirect URI_: https://&lt;url&gt;/sonarqube/oauth2/callback/gitlab
     * _Trusted_: checked
-    * _Scopes_: read_user
+    * _Scopes_: read_user, api
   * _Secret_: as above
   * _Allow users to sign-up_: yes
   * _Synchronize user groups_: yes
-  * _User exceptions_: root
-* Reporting
-  * _GitLab url_: https://&lt;url&gt;/gitlab
-  * _Comment when no new issue_: yes
-  * _All issues_: yes
-  * _Load rules information_: yes
 
 After the configuration has been done, SonarQube must be restarted.
 
@@ -383,6 +370,88 @@ As the services are completely configured and running, it's time to configure th
   * Allow
 
 > ⚠ Do not select a _built-in applications_ while creating the rule. If you stop all service in one time using ```docker-compose stop```, the rule will be deactivated.
+
+## Docker System Prune
+
+WatchTower will update the containers every week. But the old containers are never deleted. To clean the Docker cache and to avoid being polluted with unneeded data, the command ```docker system prune``` should be called periodically. To launch this command, create a new _User-defined script_ _Scheduled Task_ in the _Task Scheduler_ of DSM, using these parameters :
+* General Settings
+  * __Task__: Docker Prune
+  * __User__: root
+* Schedule
+  * __Date__: _Run on the following date_, YYYY-MM-01, _Repeat Monthly_
+* Task Settings
+  * __Send run details by email__: ticked
+  * __Email__: your e-mail address
+  * __User-defined script__: ```docker system prune --force --all --volumes```
+
+> If you want to keep the volumes, remove the ```--volumes``` parameter.
+
+You can test you task by running it. If everything is correctly configured, you will receive an e-mail at the address specified with the log of the task.
+
+## Tips & Tricks
+
+### Upgrading PostgreSQL
+
+To upgrade PostgreSQL, two container need to be run at the same time, the old version and the new one. The new container should run on a different port than the older one. **Before the migration, all container or services that need the old version must be stopped**. The following commands concern a migration from 9.6 to 12.
+
+The first step is to add the new version as a service in the ```docker-compose.yml``` file :
+
+```yaml
+  # ...
+  postgres12:
+    image: 'postgres:12'
+    restart: always
+    networks:
+      - cicdnet
+    volumes:
+      - postgresql12:/var/lib/postgresql
+      - postgresql12_data:/var/lib/postgresql/data
+  # ...
+
+volumes:
+  # ...
+  postgresql12:
+  postgresql12_data:
+  # ...
+```
+
+And then, stop all services depending on the database server:
+
+```shell
+$ sudo docker-compose stop sonarqube gitlab
+```
+
+```pg_dumpall``` will generate a SQL file containing all databases and users. This file will next be copied to the new container to be loaded. The configuration files will also be copied.
+
+```shell
+$ sudo docker exec -ti postgres_1 bash
+root@postgres_1$ pg_dumpall -U postgres -W > pg96.sql
+root@postgres_1$ exit
+$ sudo docker cp postgres_1:/pg96.sql .
+$ sudo docker cp postgres_1:/var/lib/postgresql/data/postgresql.conf .
+$ sudo docker cp postgres_1:/var/lib/postgresql/data/pg_hba.conf .
+$ sudo docker-compose stop postgres
+$ sudo docker-compose up -d postgres12
+$ sudo docker cp pg_hba.conf postgres12_1:/var/lib/postgresql/data/pg_hba.conf
+$ sudo docker cp postgresql.conf postgres12_1:/var/lib/postgresql/data/postgresql.conf
+$ sudo docker cp pg96.sql postgres12_1:/.
+$ sudo docker exec -ti postgres12_1 bash
+root@postgres12_1$ psql -U postgres -f pg96.sql
+root@postgres12_1$ rm pg96.sql
+root@postgres12_1$ exit
+$ sudo docker-compose restart postgres12
+$ sudo rm pg_hba.conf postgresql.conf pg96.sql
+```
+
+Finally, all containers can be restarted and the old volumes and images can be deleted:
+
+```shell
+# clean the docker-compose.yml file
+$ vi docker-compose.yml
+$ sudo docker-compose restart
+# take care that all container have started using "sudo docker container ls"
+$ sudo docker system prune --all --volumes
+```
 
 ## References
 

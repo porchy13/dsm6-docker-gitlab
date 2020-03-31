@@ -1,14 +1,17 @@
 version: "3"
 
 services:
-  postgres:
-    image: 'postgres:9.6-alpine'
+
+  postgres12:
+    image: 'postgres:12'
     restart: always
     networks:
       - cicdnet
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
-      - postgresql:/var/lib/postgresql
-      - postgresql_data:/var/lib/postgresql/data
+      - postgresql12:/var/lib/postgresql
+      - postgresql12_data:/var/lib/postgresql/data
 
   gitlab:
     image: 'gitlab/gitlab-ee:latest'
@@ -34,7 +37,7 @@ services:
     restart: always
     depends_on:
       - postgres
-    command: -Dsonar.web.context=/sonarqube
+    command: -Dsonar.web.context=/sonarqube -Dsonar.search.javaAdditionalOpts=-Dbootstrap.system_call_filter=false
     networks:
       - cicdnet
     environment:
@@ -46,7 +49,6 @@ services:
       - sonarqube_conf:/opt/sonarqube/conf
       - sonarqube_data:/opt/sonarqube/data
       - sonarqube_extensions:/opt/sonarqube/extensions
-      - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
 
   gitlab-runner:
     image: 'gitlab/gitlab-runner:latest'
@@ -81,13 +83,12 @@ networks:
     driver: bridge
 
 volumes:
-  postgresql:
-  postgresql_data:
+  postgresql12:
+  postgresql12_data:
   gitlab_conf:
   gitlab_log:
   gitlab_data:
   sonarqube_conf:
   sonarqube_data:
   sonarqube_extensions:
-  sonarqube_bundled-plugins:
   gitlab-runner_conf:
