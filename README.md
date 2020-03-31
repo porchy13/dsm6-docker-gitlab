@@ -40,8 +40,8 @@ postgres:
   networks:
     - cicdnet
   volumes:
-    - postgresql:/var/lib/postgresql
-    - postgresql_data:/var/lib/postgresql/data
+    - postgresql12:/var/lib/postgresql
+    - postgresql12_data:/var/lib/postgresql/data
 ```
 
 The next step is to set the password for the super-admin, creates the databases for GitLab and SonarQube and define how they can be accessed. Let's start with the password:
@@ -232,7 +232,7 @@ sonarqube:
   networks:
     - cicdnet
   environment:
-    - SONARQUBE_JDBC_URL=jdbc:postgresql://postgres:5432/sonar
+    - SONARQUBE_JDBC_URL=jdbc:postgresql://postgres12:5432/sonar
     - SONARQUBE_JDBC_USERNAME=sonar
     - SONARQUBE_JDBC_PASSWORD=${SONARQUBE_PASSWORD}
     - sonar.search.javaAdditionalOpts=-Dbootstrap.system_call_filter=false
